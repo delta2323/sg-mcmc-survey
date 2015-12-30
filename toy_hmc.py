@@ -1,30 +1,22 @@
+"""Hamiltonian Monte Carlo (HMC)[Neal+10] with Chainer
+
+Example from section 5.1 of [Welling+11].
+
+[Neal10] [MCMC using Hamiltonian dynamics]
+(http://www.cs.utoronto.ca/~radford/ftp/ham-mcmc.pdf)
+[Welling+11] [Bayesian Learning via Stochastic Gradient Langevin Dynamics]
+(http://www.icml-2011.org/papers/398_icmlpaper.pdf)
+"""
+
+
 import chainer
 from chainer import functions as F
 import matplotlib.pyplot as plt
 import numpy
 import six
 
+import model
 
-def generate(N, theta1, theta2, var_x):
-    a = numpy.sqrt(var_x) * numpy.random.randn(N, ) + theta1
-    b = numpy.sqrt(var_x) * numpy.random.randn(N, ) + theta1 + theta2
-    select = numpy.random.random_integers(0, 1, (N, ))
-    return a * select + b * (1 - select)
-
-
-def gaussian_likelihood(x, mu, var):
-    if isinstance(x, numpy.ndarray):
-        x = chainer.Variable(x.astype(numpy.float32))
-        x, mu = F.broadcast(x, mu)
-    return F.exp(-(x - mu) ** 2 / var / 2) / numpy.sqrt(2 * numpy.pi * var)
-
-
-# data generation
-THETA1 = 0
-THETA2 = 1
-VAR1 = 10
-VAR2 = 1
-VAR_X = 2
 
 # sample size
 n = 100
@@ -33,33 +25,15 @@ n_batch = (n + batchsize - 1) // batchsize
 
 # HMC parameter
 eps = 0.001
-EPOCH = 1000
+EPOCH = 10000
 L = 30
 
 SEED = 0
 numpy.random.seed(SEED)
 
 
-def calc_log_posterior(theta, x):
-    theta1, theta2 = F.split_axis(theta, 2, 0)
-    log_prior1 = F.sum(F.log(gaussian_likelihood(theta1, 0, VAR1)))
-    log_prior2 = F.sum(F.log(gaussian_likelihood(theta2, 0, VAR2)))
-    prob1 = gaussian_likelihood(x, theta1, VAR_X)
-    prob2 = gaussian_likelihood(x, theta1 + theta2, VAR_X)
-    log_likelihood = F.sum(F.log(prob1 / 2 + prob2 / 2))
-    return log_prior1 + log_prior2 + log_likelihood
-
-
-def calc_grad(q, x):
-    q = chainer.Variable(numpy.array(q, dtype=numpy.float32))
-    log_posterior = calc_log_posterior(q, x)
-    q.zerograd()
-    log_posterior.backward()
-    return q.grad
-
-
 def update_p(p, q, x):
-    d_q = calc_grad(q, x)
+    d_q = model.calc_grad(q, x)
     return p + d_q * eps / 2
 
 
@@ -77,15 +51,15 @@ def update(p, q, x):
 
 def H(p, q):
     q = chainer.Variable(numpy.array(q, dtype=numpy.float32))
-    U = -F.sum(calc_log_posterior(q, x)).data
+    U = -F.sum(model.calc_log_posterior(q, x)).data
     K = numpy.sum(p ** 2) / 2
     return U + K
 
 
 theta1_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
 theta2_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
-theta = numpy.random.randn(2) * [numpy.sqrt(VAR1), numpy.sqrt(VAR2)]
-x = generate(n, THETA1, THETA2, VAR_X)
+theta = model.sample_from_prior()
+x = model.generate(n)
 for epoch in six.moves.range(EPOCH):
     perm = numpy.random.permutation(n)
     for i in six.moves.range(0, n, batchsize):
