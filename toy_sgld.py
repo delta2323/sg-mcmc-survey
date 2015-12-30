@@ -46,6 +46,7 @@ A, B = calc_ab(EPS_START, EPS_END, GAMMA, EPOCH)
 # sample size
 n = 100
 batchsize = 1
+n_batch = (n + batchsize - 1) // batchsize
 
 SEED = 0
 numpy.random.seed(SEED)
@@ -76,8 +77,8 @@ def update(theta, x, epoch):
     return theta + d_theta * eps / 2 + eta
 
 
-theta1_all = numpy.empty((EPOCH * n,), dtype=numpy.float32)
-theta2_all = numpy.empty((EPOCH * n,), dtype=numpy.float32)
+theta1_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
+theta2_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
 theta = numpy.random.randn(2) * [numpy.sqrt(VAR1), numpy.sqrt(VAR2)]
 x = generate(n, THETA1, THETA2, VAR_X)
 for epoch in six.moves.range(EPOCH):
@@ -85,8 +86,8 @@ for epoch in six.moves.range(EPOCH):
     for i in six.moves.range(0, n, batchsize):
         theta = update(theta, x[perm][i: i+batchsize], epoch)
 
-        theta1_all[epoch * n + i / batchsize] = theta[0]
-        theta2_all[epoch * n + i / batchsize] = theta[1]
+        theta1_all[epoch * n_batch + i // batchsize] = theta[0]
+        theta2_all[epoch * n_batch + i // batchsize] = theta[1]
         if i == 0:
             print(epoch, theta, theta[0] * 2 + theta[1])
 
