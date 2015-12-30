@@ -91,12 +91,11 @@ for epoch in six.moves.range(EPOCH):
             print(epoch, theta, theta[0] * 2 + theta[1])
 
 H, xedges, yedges = numpy.histogram2d(theta1_all, theta2_all, bins=200)
-
+H = numpy.rot90(H)
+H = numpy.flipud(H)
 Hmasked = numpy.ma.masked_where(H == 0, H)
-fig = plt.figure()
 plt.pcolormesh(xedges, yedges, Hmasked)
 plt.xlabel('x')
 plt.ylabel('y')
 cbar = plt.colorbar()
-cbar.ax.set_ylabel('Counts')
 plt.savefig('visualize.png')
