@@ -32,16 +32,23 @@ SEED = 0
 numpy.random.seed(SEED)
 
 
-def update_p(p, q, x):
-    d_q = model.calc_grad(q, x)
-    return p + d_q * eps / 2
-
-
-def update_q(q, p):
-    return q + p * eps
-
-
 def update(p, q, x):
+    """One parmeter-update step with leapfrog
+
+    Args:
+        p(numpy.ndarray): generalized momuntum
+        q(numpy.ndarray): generalized coordinate
+        x(numpy.ndarray): sample data
+    Returns:
+        pair of numpy.ndarray: updated momentum and coordinate
+    """
+    def update_p(p, q, x):
+        d_q = model.calc_grad(q, x)
+        return p + d_q * eps / 2
+
+    def update_q(q, p):
+        return q + p * eps
+
     for l in six.moves.range(L):
         p = update_p(p, q, x)
         q = update_q(q, p)
@@ -50,6 +57,14 @@ def update(p, q, x):
 
 
 def H(p, q):
+    """Calculates Hamiltonian
+
+    Args:
+        p(numpy.ndarray): generalized momuntum
+        q(numpy.ndarray): generalized coordinate
+    Returns:
+        float: Hamiltonian calculated from ``p`` and ``q``
+    """
     q = chainer.Variable(numpy.array(q, dtype=numpy.float32))
     U = -F.sum(model.calc_log_posterior(q, x)).data
     K = numpy.sum(p ** 2) / 2
