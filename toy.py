@@ -61,13 +61,19 @@ def calc_log_posterior(theta, x):
     return log_prior1 + log_prior2 + log_likelihood * n / len(x)
 
 
-def calc_grad(theta, x)
+def calc_grad(theta, x):
+    theta = chainer.Variable(numpy.array(theta, dtype=numpy.float32))
+    log_posterior = calc_log_posterior(theta, x)
+    theta.zerograd()
+    log_posterior.backward()
+    return theta.grad
 
-def update(theta, epoch):
+
+def update(theta, x, epoch):
+    d_theta = calc_grad(theta, x)
     eps = A / (B + epoch) ** GAMMA
     eta = numpy.random.randn() * numpy.sqrt(eps)
-    d_theta = theta.grad * eps / 2 + eta
-    return theta.data + d_theta
+    return theta + d_theta * eps / 2 + eta
 
 
 theta1_all = numpy.empty((EPOCH * n,), dtype=numpy.float32)
@@ -77,13 +83,7 @@ x = generate(n, THETA1, THETA2, VAR_X)
 for epoch in six.moves.range(EPOCH):
     perm = numpy.random.permutation(n)
     for i in six.moves.range(0, n, batchsize):
-        theta = chainer.Variable(numpy.array(theta, dtype=numpy.float32))
-        log_posterior = calc_log_posterior(theta, x[perm][i: i+batchsize])
-
-        theta.zerograd()
-        log_posterior.backward()
-
-        theta = update(theta, x, epoch)
+        theta = update(theta, x[perm][i: i+batchsize], epoch)
 
         theta1_all[epoch * n + i / batchsize] = theta[0]
         theta2_all[epoch * n + i / batchsize] = theta[1]
