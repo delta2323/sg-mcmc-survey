@@ -11,7 +11,7 @@ def generate(N, theta1, theta2, var_x):
     select = numpy.random.random_integers(0, 1, (N, ))
     return a * select + b * (1 - select)
 
-            
+
 def gaussian_likelihood(x, mu, var):
     if isinstance(x, numpy.ndarray):
         x = chainer.Variable(x.astype(numpy.float32))
@@ -19,11 +19,11 @@ def gaussian_likelihood(x, mu, var):
     return F.exp(-(x - mu) ** 2 / var / 2) / numpy.sqrt(2 * numpy.pi * var)
 
 
-def calc_ab(eps_start, eps_end, gamma, iter):
-    B = 1 / ((eps_start / eps_end) ** (1 / gamma) - 1) * iter
+def calc_ab(eps_start, eps_end, gamma, epoch):
+    B = 1 / ((eps_start / eps_end) ** (1 / gamma) - 1) * epoch
     A = eps_start * B ** gamma
     eps_start_actual = A / B ** gamma
-    eps_end_actual = A / (B + iter) ** gamma
+    eps_end_actual = A / (B + epoch) ** gamma
     assert abs(eps_start - eps_start_actual) < 1e-4
     assert abs(eps_end - eps_end_actual) < 1e-4
     return A, B
@@ -37,11 +37,15 @@ VAR_X = 2
 EPS_START = 0.01
 EPS_END = 0.0001
 GAMMA = 0.55
-ITER = 100000
-A, B = calc_ab(EPS_START, EPS_END, GAMMA, ITER)
+EPOCH = 100
+A, B = calc_ab(EPS_START, EPS_END, GAMMA, EPOCH)
 n = 100
+batchsize = 1
+n_batchsize = (n + batchsize - 1) // batchsize
+SEED = 0
+numpy.random.seed(SEED)
 
-def update(theta1, theta2, x, iter):
+def update(theta1, theta2, x, epoch):
     theta1 = chainer.Variable(numpy.array(theta1, dtype=numpy.float32))
     theta2 = chainer.Variable(numpy.array(theta2, dtype=numpy.float32))
 
@@ -50,13 +54,13 @@ def update(theta1, theta2, x, iter):
     prob1 = gaussian_likelihood(x, theta1, VAR_X)
     prob2 = gaussian_likelihood(x, theta1 + theta2, VAR_X)
     log_likelihood = F.sum(F.log(prob1 / 2 + prob2 / 2))
-    log_posterior = log_prior1 + log_prior2 + log_likelihood
+    log_posterior = log_prior1 + log_prior2 + log_likelihood * n / len(x)
 
     theta1.zerograd()
     theta2.zerograd()
     log_posterior.backward()
 
-    eps = A / (B + iter) ** GAMMA
+    eps = A / (B + epoch) ** GAMMA
     eta = numpy.random.randn() * numpy.sqrt(eps)
     d_theta1 = theta1.grad[0] * eps / 2 + eta
     d_theta2 = theta2.grad[0] * eps / 2 + eta
@@ -65,21 +69,24 @@ def update(theta1, theta2, x, iter):
 
 theta1 = numpy.random.randn(1) * numpy.sqrt(VAR1)
 theta2 = numpy.random.randn(1) * numpy.sqrt(VAR2)
-theta1_all = numpy.empty((ITER,), dtype=numpy.float32)
-theta2_all = numpy.empty((ITER,), dtype=numpy.float32)
-for iter in six.moves.range(ITER):
-    x = generate(n, THETA1, THETA2, VAR_X)
-    d_theta1, d_theta2 = update(theta1, theta2, x, iter)
-    theta1 += d_theta1
-    theta2 += d_theta2
-    theta1_all[iter] = theta1[0]
-    theta2_all[iter] = theta2[0]
-    if iter % 1000 == 0:
-        print(iter, theta1[0], theta2[0], theta1[0] * 2 + theta2[0])
+theta1_all = numpy.empty((EPOCH * n,), dtype=numpy.float32)
+theta2_all = numpy.empty((EPOCH * n,), dtype=numpy.float32)
+x = generate(n, THETA1, THETA2, VAR_X)
+for epoch in six.moves.range(EPOCH):
+    perm = numpy.random.permutation(n)
+    for i in six.moves.range(0, n, batchsize):
+        d_theta1, d_theta2 = update(
+            theta1, theta2, x[perm][i: i+batchsize], epoch)
+        theta1 += d_theta1
+        theta2 += d_theta2
+        theta1_all[epoch * n + i / batchsize] = theta1[0]
+        theta2_all[epoch * n + i / batchsize] = theta2[0]
+        if i == 0:
+            print(epoch, theta1[0], theta2[0], theta1[0] * 2 + theta2[0])
 
 H, xedges, yedges = numpy.histogram2d(theta1_all, theta2_all, bins=200)
 
-Hmasked = numpy.ma.masked_where(H==0, H)
+Hmasked = numpy.ma.masked_where(H == 0, H)
 fig = plt.figure()
 plt.pcolormesh(xedges, yedges, Hmasked)
 plt.xlabel('x')
