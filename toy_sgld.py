@@ -40,7 +40,7 @@ VAR_X = 2
 EPS_START = 0.01
 EPS_END = 0.0001
 GAMMA = 0.55
-EPOCH = 100
+EPOCH = 10000
 A, B = calc_ab(EPS_START, EPS_END, GAMMA, EPOCH)
 
 # sample size
