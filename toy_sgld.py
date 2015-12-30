@@ -13,9 +13,22 @@ def generate(N, theta1, theta2, var_x):
 
 
 def gaussian_likelihood(x, mu, var):
-    if isinstance(x, numpy.ndarray):
+    """Returns likelihood of ``x``, or ``N(x; mu, var)``
+
+    Args:
+        x(float, numpy.ndarray or chainer.Variable): sample data
+        mu(float or chainer.Variable): mean of Gaussian
+        var(float): variance of Gaussian
+    Returns:
+        chainer.Variable: Variable holding likelihood ``N(x; mu, var)``
+        whose shape is same as that of ``x``
+    """
+
+    if isinstance(x, numpy.ndarray) or numpy.isscalar(x):
         x = chainer.Variable(x.astype(numpy.float32))
-        x, mu = F.broadcast(x, mu)
+    if isinstance(mu, numpy.ndarray) or numpy.isscalar(mu):
+        mu = chainer.Variable(mu.astype(numpy.float32))
+    x, mu = F.broadcast(x, mu)
     return F.exp(-(x - mu) ** 2 / var / 2) / numpy.sqrt(2 * numpy.pi * var)
 
 
