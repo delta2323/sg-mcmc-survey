@@ -55,7 +55,7 @@ x = model.generate(args.N)
 for epoch in six.moves.range(args.epoch):
     perm = numpy.random.permutation(args.N)
     for i in six.moves.range(0, args.N, args.batchsize):
-        theta = update(theta, x[perm][i: i+args.batchsize],
+        theta = update(theta, x[perm][i: i + args.batchsize],
                        epoch, ssg(epoch))
 
         theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]

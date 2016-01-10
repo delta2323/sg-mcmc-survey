@@ -29,14 +29,18 @@ n_batch = (args.N + args.batchsize - 1) // args.batchsize
 numpy.random.seed(args.seed)
 
 
-def update_p(p, theta, x, eps):
-    d_theta = model.calc_grad(theta, x, args.N)
-    return ((1 - args.D * eps) * theta + d_theta
-            + math.sqrt(2 * args.D * eps) * numpy.random.randn(*theta.shape))
+def update(p, theta, x, eps):
+    def update_p(p, theta, x, eps):
+        d_theta = model.calc_grad(theta, x, args.N)
+        return ((1 - args.D * eps) * theta + d_theta
+                + math.sqrt(2 * args.D * eps) * numpy.random.randn(*theta.shape))
 
+    def update_theta(theta, p, eps):
+        return theta + p * eps
 
-def update_theta(theta, p, eps):
-    return theta + p * eps
+    p = update_p(p, theta, x, eps)
+    theta = update_theta(theta, p, eps)
+    return p, theta
 
 
 theta1_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
@@ -52,8 +56,7 @@ for epoch in six.moves.range(args.epoch):
             p = numpy.random.randn(*theta.shape)
         eps = ssg(epoch)
         for l in six.moves.range(30):
-            p = update_p(p, theta, x[perm][i: i+args.batchsize], eps)
-            theta = update_theta(theta, p, eps)
+            p, theta = update(p, theta, x[perm][i: i + args.batchsize], eps)
 
         theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]
         theta2_all[epoch * n_batch + i // args.batchsize] = theta[1]
