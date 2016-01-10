@@ -17,7 +17,8 @@ parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=1, type=int, help='batchsize')
 parser.add_argument('--epoch', default=100, type=int, help='epoch num')
 # SGLMC parameter
-parser.add_argument('--D', default=0.1, type=float, help='diffusion parameter')
+parser.add_argument('--F', default=30, type=float, help='friction parameter')
+parser.add_argument('--D', default=10, type=float, help='diffusion parameter')
 parser.add_argument('--initialize-moment', action='store_true',
                     help='If true, initialize moment in each sample')
 parser.add_argument('--L', default=10, type=int, help='sampling interval')
@@ -35,7 +36,7 @@ numpy.random.seed(args.seed)
 def update(p, theta, x, eps):
     def update_p(p, theta, x, eps):
         d_theta = model.calc_grad(theta, x, args.N)
-        return ((1 - args.D * eps) * theta + d_theta
+        return ((1 - args.F * eps) * p + d_theta * eps
                 + math.sqrt(2 * args.D * eps)
                 * numpy.random.randn(*theta.shape))
 
