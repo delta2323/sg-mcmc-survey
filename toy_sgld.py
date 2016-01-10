@@ -20,6 +20,8 @@ n = 100
 batchsize = 1
 n_batch = (n + batchsize - 1) // batchsize
 
+# sgld paremter
+EPOCH = 1000
 SEED = 0
 numpy.random.seed(SEED)
 
@@ -42,7 +44,7 @@ def update(theta, x, epoch, eps):
 
 theta1_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
 theta2_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
-ssg = stepsize.StepSizeGenerator(epoch=EPOCH)
+ssg = stepsize.StepSizeGenerator(EPOCH)
 theta = model.sample_from_prior()
 x = model.generate(n)
 for epoch in six.moves.range(EPOCH):
