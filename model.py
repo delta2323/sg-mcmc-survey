@@ -65,7 +65,7 @@ def calc_log_posterior(theta, x, n=None):
     return log_prior1 + log_prior2 + log_likelihood
 
 
-def calc_grad(theta, x):
+def calc_grad(theta, x, n=None):
     """Computes gradient of log posterior w.r.t. parameter
 
     Args:
@@ -75,7 +75,7 @@ def calc_grad(theta, x):
         numpy.ndarray: ``dp(theta | x) / dtheta``
     """
     theta = chainer.Variable(numpy.array(theta, dtype=numpy.float32))
-    log_posterior = calc_log_posterior(theta, x)
+    log_posterior = calc_log_posterior(theta, x, n)
     theta.zerograd()
     log_posterior.backward()
     return theta.grad

@@ -43,7 +43,7 @@ def update(p, q, x):
         pair of numpy.ndarray: updated momentum and coordinate
     """
     def update_p(p, q, x):
-        d_q = model.calc_grad(q, x)
+        d_q = model.calc_grad(q, x, n)
         return p + d_q * eps / 2
 
     def update_q(q, p):

@@ -35,7 +35,7 @@ def update(theta, x, epoch, eps):
         numpy.ndarray: updated parameter whose shape is
         same as theta
     """
-    d_theta = model.calc_grad(theta, x)
+    d_theta = model.calc_grad(theta, x, n)
     eta = numpy.random.randn() * numpy.sqrt(eps)
     return theta + d_theta * eps / 2 + eta
 
