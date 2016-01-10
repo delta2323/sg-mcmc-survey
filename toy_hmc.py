@@ -22,13 +22,16 @@ import plot
 
 
 parser = argparse.ArgumentParser(description='HMC')
+# true parameter
+parser.add_argument('--theta1', default=0, type=float, help='true paremter 1')
+parser.add_argument('--theta2', default=1, type=float, help='true paremter 2')
 # data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=100, type=int, help='batchsize')
 parser.add_argument('--epoch', default=10000, type=int, help='epoch num')
 # HMC parameter
-parser.add_argument('--eps', default=0.001, type=float, help='stepsize')
-parser.add_argument('--L', default=30, type=int, help='sampling interval')
+parser.add_argument('--eps', default=0.01, type=float, help='stepsize')
+parser.add_argument('--L', default=10, type=int, help='sampling interval')
 parser.add_argument('--rejection-sampling', action='store_true',
                     help='If true, rejection phase is introduced')
 # others
@@ -98,7 +101,7 @@ def accept(p, theta, p_propose, theta_propose):
 theta1_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta2_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta = model.sample_from_prior()
-x = model.generate(args.N)
+x = model.generate(args.N, args.theta1, args.theta2)
 for epoch in six.moves.range(args.epoch):
     perm = numpy.random.permutation(args.N)
     p = numpy.random.randn(*theta.shape)
