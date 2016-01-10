@@ -19,13 +19,19 @@ import stepsize
 
 
 parser = argparse.ArgumentParser(description='SGLD')
+# true parameter
+parser.add_argument('--theta1', default=0, type=int, help='true paremter 1')
+parser.add_argument('--theta2', default=1, type=int, help='true paremter 2')
 # data
 parser.add_argument('--N', default=100, type=int, help='training data size')
-parser.add_argument('--batchsize', default=1, type=int, help='batchsize')
-parser.add_argument('--epoch', default=100, type=int, help='epoch num')
+parser.add_argument('--batchsize', default=10, type=int, help='batchsize')
+parser.add_argument('--epoch', default=1000, type=int, help='epoch num')
+# SGLD parameter
+parser.add_argument('--eps-start', default=0.05, type=float, help='start stepsize')
+parser.add_argument('--eps-end', default=0.01, type=float, help='end stepsize')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
-parser.add_argument('--visualize', default='visualize_hmc.png', type=str,
+parser.add_argument('--visualize', default='visualize_sgld.png', type=str,
                     help='path to output file')
 args = parser.parse_args()
 
@@ -52,9 +58,9 @@ def update(theta, x, epoch, eps):
 
 theta1_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta2_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
-ssg = stepsize.StepSizeGenerator(args.epoch)
+ssg = stepsize.StepSizeGenerator(args.epoch, args.eps_start, args.eps_end)
 theta = model.sample_from_prior()
-x = model.generate(args.N)
+x = model.generate(args.N, args.theta1, args.theta2)
 for epoch in six.moves.range(args.epoch):
     perm = numpy.random.permutation(args.N)
     for i in six.moves.range(0, args.N, args.batchsize):
