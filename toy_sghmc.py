@@ -9,6 +9,7 @@ import six
 
 import model
 import stepsize
+import plot
 
 
 parser = argparse.ArgumentParser(description='SGHMC')
@@ -22,6 +23,8 @@ parser.add_argument('--initialize-moment', action='store_true',
                     help='If true, initialize moment in each sample')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
+parser.add_argument('--visualize', default='visualize_sghmc.png', type=str,
+                    help='path to output file')
 args = parser.parse_args()
 
 
@@ -63,12 +66,7 @@ for epoch in six.moves.range(args.epoch):
         if i == 0:
             print(epoch, theta, theta[0] * 2 + theta[1])
 
-H, xedges, yedges = numpy.histogram2d(theta1_all, theta2_all, bins=200)
-H = numpy.rot90(H)
-H = numpy.flipud(H)
-Hmasked = numpy.ma.masked_where(H == 0, H)
-plt.pcolormesh(xedges, yedges, Hmasked)
-plt.xlabel('x')
-plt.ylabel('y')
-cbar = plt.colorbar()
-plt.savefig('visualize_sghmc.png')
+fig, axes = pyplot.subplots(ncols=1, nrows=1)
+plot.visualize2D(fig, axes, theta1_all, theta2_all,
+                 xlabel='theta1', ylabel='theta2')
+fig.savefig(args.visualize)

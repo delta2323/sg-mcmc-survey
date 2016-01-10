@@ -13,11 +13,12 @@ import argparse
 
 import chainer
 from chainer import functions as F
-import matplotlib.pyplot as plt
+from matplotlib import pyplot
 import numpy
 import six
 
 import model
+import plot
 
 
 parser = argparse.ArgumentParser(description='HMC')
@@ -32,6 +33,8 @@ parser.add_argument('--rejection-sampling', action='store_true',
                     help='If true, rejection phase is introduced')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
+parser.add_argument('--visualize', default='visualize_hmc.png', type=str,
+                    help='path to output file')
 args = parser.parse_args()
 
 n_batch = (args.N + args.batchsize - 1) // args.batchsize
@@ -112,12 +115,7 @@ for epoch in six.moves.range(args.epoch):
         theta2_all[epoch * n_batch + i // args.batchsize] = theta[1]
         print(epoch, theta, theta[0] * 2 + theta[1])
 
-H, xedges, yedges = numpy.histogram2d(theta1_all, theta2_all, bins=200)
-H = numpy.rot90(H)
-H = numpy.flipud(H)
-Hmasked = numpy.ma.masked_where(H == 0, H)
-plt.pcolormesh(xedges, yedges, Hmasked)
-plt.xlabel('x')
-plt.ylabel('y')
-cbar = plt.colorbar()
-plt.savefig('visualize_hmc.png')
+fig, axes = pyplot.subplots(ncols=1, nrows=1)
+plot.visualize2D(fig, axes, theta1_all, theta2_all,
+                 xlabel='theta1', ylabel='theta2')
+fig.savefig(args.visualize)
