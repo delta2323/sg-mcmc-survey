@@ -8,8 +8,8 @@ Example from section 5.1 of [Welling+11].
 (http://www.icml-2011.org/papers/398_icmlpaper.pdf)
 """
 
+from __future__ import print_function
 import argparse
-
 
 import chainer
 from chainer import functions as F
@@ -21,7 +21,7 @@ import model
 
 
 parser = argparse.ArgumentParser(description='HMC')
-# training data
+# data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=100, type=int, help='batchsize')
 parser.add_argument('--epoch', default=10000, type=int, help='epoch num')

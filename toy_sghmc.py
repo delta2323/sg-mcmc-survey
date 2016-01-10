@@ -12,7 +12,7 @@ import stepsize
 
 
 parser = argparse.ArgumentParser(description='SGHMC')
-# training data
+# data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=10, type=int, help='batchsize')
 parser.add_argument('--epoch', default=1000, type=int, help='epoch num')
