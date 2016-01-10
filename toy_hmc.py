@@ -24,11 +24,14 @@ parser = argparse.ArgumentParser(description='HMC')
 # training data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=100, type=int, help='batchsize')
+parser.add_argument('--epoch', default=10000, type=int, help='epoch num')
 # HMC parameter
 parser.add_argument('--eps', default=0.001, type=float, help='stepsize')
-parser.add_argument('--epoch', default=10000, type=int, help='sample size')
-parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--L', default=30, type=int, help='sampling interval')
+parser.add_argument('--rejection-sampling', action='store_true',
+                    help='If true, rejection phase is introduced')
+# others
+parser.add_argument('--seed', default=0, type=int, help='random seed')
 args = parser.parse_args()
 
 n_batch = (args.N + args.batchsize - 1) // args.batchsize
@@ -74,6 +77,21 @@ def H(p, q):
     return U + K
 
 
+def accept(p, theta, p_propose, theta_propose):
+    """Test to accept proposal parameter
+
+    Because of the conservation law of energy,
+    we can expect H is almost preserved (except numerical and/or
+    discretization error) and hence acc_ratio nearly equals to 1.0.
+    So, this acceptance step has almost no effect.
+    """
+
+    H_prev = H(p, theta)
+    H_propose = H(p_propose, theta_propose)
+    acc_ratio = min([1.0, numpy.exp(H_prev - H_propose)])
+    return numpy.random.randn() < acc_ratio
+
+
 theta1_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta2_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta = model.sample_from_prior()
@@ -82,15 +100,12 @@ for epoch in six.moves.range(args.epoch):
     perm = numpy.random.permutation(args.N)
     for i in six.moves.range(0, args.N, args.batchsize):
         p = numpy.random.randn(*theta.shape)
-        H_prev = H(p, theta)
         p_propose, theta_propose = update(p, theta, x[perm][i: i+args.batchsize])
 
-        # Because of the conservation law of energy,
-        # we can expect H is almost preserved (except numerical and/or
-        # discretization error) and hence acc_ratio nearly equals to 1.0.
-        # So, this acceptance step has almost no effect.
-        acc_ratio = min([1.0, numpy.exp(H_prev - H(p_propose, theta_propose))])
-        if numpy.random.randn() < acc_ratio:
+        if args.rejection_sampling:
+            if accept(p, theta, p_propose, theta_propose):
+                theta = theta_propose
+        else:
             theta = theta_propose
 
         theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]
