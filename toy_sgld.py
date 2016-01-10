@@ -20,8 +20,8 @@ import stepsize
 
 parser = argparse.ArgumentParser(description='SGLD')
 # true parameter
-parser.add_argument('--theta1', default=0, type=int, help='true paremter 1')
-parser.add_argument('--theta2', default=1, type=int, help='true paremter 2')
+parser.add_argument('--theta1', default=0, type=float, help='true paremter 1')
+parser.add_argument('--theta2', default=1, type=float, help='true paremter 2')
 # data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=10, type=int, help='batchsize')
