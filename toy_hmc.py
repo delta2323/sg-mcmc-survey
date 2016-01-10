@@ -8,6 +8,8 @@ Example from section 5.1 of [Welling+11].
 (http://www.icml-2011.org/papers/398_icmlpaper.pdf)
 """
 
+import argparse
+
 
 import chainer
 from chainer import functions as F
@@ -18,18 +20,19 @@ import six
 import model
 
 
-# sample size
-n = 100
-batchsize = 100
-n_batch = (n + batchsize - 1) // batchsize
-
+parser = argparse.ArgumentParser(description='HMC')
+# training data
+parser.add_argument('--N', default=100, type=int, help='training data size')
+parser.add_argument('--batchsize', default=100, type=int, help='batchsize')
 # HMC parameter
-eps = 0.001
-EPOCH = 10000
-L = 30
+parser.add_argument('--eps', default=0.001, type=float, help='stepsize')
+parser.add_argument('--epoch', default=10000, type=int, help='sample size')
+parser.add_argument('--seed', default=0, type=int, help='random seed')
+parser.add_argument('--L', default=30, type=int, help='sampling interval')
+args = parser.parse_args()
 
-SEED = 0
-numpy.random.seed(SEED)
+n_batch = (args.N + args.batchsize - 1) // args.batchsize
+numpy.random.seed(args.seed)
 
 
 def update(p, q, x):
@@ -43,13 +46,13 @@ def update(p, q, x):
         pair of numpy.ndarray: updated momentum and coordinate
     """
     def update_p(p, q, x):
-        d_q = model.calc_grad(q, x, n)
-        return p + d_q * eps / 2
+        d_q = model.calc_grad(q, x, args.N)
+        return p + d_q * args.eps / 2
 
     def update_q(q, p):
-        return q + p * eps
+        return q + p * args.eps
 
-    for l in six.moves.range(L):
+    for l in six.moves.range(args.L):
         p = update_p(p, q, x)
         q = update_q(q, p)
         p = update_p(p, q, x)
@@ -71,16 +74,16 @@ def H(p, q):
     return U + K
 
 
-theta1_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
-theta2_all = numpy.empty((EPOCH * n_batch,), dtype=numpy.float32)
+theta1_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
+theta2_all = numpy.empty((args.epoch * n_batch,), dtype=numpy.float32)
 theta = model.sample_from_prior()
-x = model.generate(n)
-for epoch in six.moves.range(EPOCH):
-    perm = numpy.random.permutation(n)
-    for i in six.moves.range(0, n, batchsize):
+x = model.generate(args.N)
+for epoch in six.moves.range(args.epoch):
+    perm = numpy.random.permutation(args.N)
+    for i in six.moves.range(0, args.N, args.batchsize):
         p = numpy.random.randn(*theta.shape)
         H_prev = H(p, theta)
-        p_propose, theta_propose = update(p, theta, x[perm][i: i+batchsize])
+        p_propose, theta_propose = update(p, theta, x[perm][i: i+args.batchsize])
 
         # Because of the conservation law of energy,
         # we can expect H is almost preserved (except numerical and/or
@@ -90,8 +93,8 @@ for epoch in six.moves.range(EPOCH):
         if numpy.random.randn() < acc_ratio:
             theta = theta_propose
 
-        theta1_all[epoch * n_batch + i // batchsize] = theta[0]
-        theta2_all[epoch * n_batch + i // batchsize] = theta[1]
+        theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]
+        theta2_all[epoch * n_batch + i // args.batchsize] = theta[1]
         print(epoch, theta, theta[0] * 2 + theta[1])
 
 H, xedges, yedges = numpy.histogram2d(theta1_all, theta2_all, bins=200)
