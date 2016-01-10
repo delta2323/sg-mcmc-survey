@@ -4,14 +4,22 @@ import numpy
 
 import gaussian
 
-# Data generation
+# true parameters
 THETA1 = 0
-THETA2 = 1
-VAR_X = 2
+THETA2 = 2
 
-# Model parameters
+# hyper parmeters
+VAR_X = 2
 VAR1 = 10
 VAR2 = 1
+
+"""
+Model
+* parameter: theta = (theta1, theta2)
+* prior: p(theta) = (N(0, VAR1), N(0, VAR2))
+* likelihood:
+    p(x | theta) ~ N(theta1, VAR_X) / 2 + N(theta1 + theta2, VAR_X) / 2
+"""
 
 
 def sample_from_prior():
@@ -27,8 +35,8 @@ def generate(N, theta1=THETA1, theta2=THETA2, var_x=VAR_X):
         theta2(float): mean of the other Gaussian
         var_x(float): variance of two Gaussians
     Returns:
-        numpy.ndarray: sample data of shape ``(N, )`` drawn from
-        ``N(theta1, var_x) / 2 + N(theta2, var_x) / 2``
+        numpy.ndarray: sample data of shape ``(N, )``
+        drawn i.i.d. from p(x | theta)
     """
 
     a = numpy.sqrt(var_x) * numpy.random.randn(N, ) + theta1
@@ -39,11 +47,6 @@ def generate(N, theta1=THETA1, theta2=THETA2, var_x=VAR_X):
 
 def calc_log_posterior(theta, x, n=None):
     """Calculate unnormalized log posterior, ``log p(theta | x) + C``
-
-    theta = (theta1, theta2)
-    prior: ``p(theta1) = N(theta1; 0, VAR1)``,
-        ``p(theta2) = N(theta2; 0, VAR2)``
-    likelihood: ``p(x | theta) = N(theta1, var_x) / 2 + N(theta2, var_x) / 2``
 
     Args:
         theta(chainer.Variable): model parameters
