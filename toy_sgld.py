@@ -9,11 +9,12 @@ Reimplementation of toy example in section 5.1 of [Welling+11].
 from __future__ import print_function
 import argparse
 
-import matplotlib.pyplot as plt
+from matplotlib import pyplot
 import numpy
 import six
 
 import model
+import plot
 import stepsize
 
 
@@ -21,7 +22,7 @@ parser = argparse.ArgumentParser(description='SGLD')
 # data
 parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=1, type=int, help='batchsize')
-parser.add_argument('--epoch', default=1000, type=int, help='epoch num')
+parser.add_argument('--epoch', default=100, type=int, help='epoch num')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--visualize', default='visualize_hmc.png', type=str,

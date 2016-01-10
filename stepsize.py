@@ -27,4 +27,4 @@ class StepSizeGenerator(object):
         return A, B
 
     def __call__(self, epoch):
-        return  self.a / (self.b + epoch) ** self.gamma
+        return self.a / (self.b + epoch) ** self.gamma

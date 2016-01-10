@@ -101,9 +101,10 @@ theta = model.sample_from_prior()
 x = model.generate(args.N)
 for epoch in six.moves.range(args.epoch):
     perm = numpy.random.permutation(args.N)
+    p = numpy.random.randn(*theta.shape)
     for i in six.moves.range(0, args.N, args.batchsize):
-        p = numpy.random.randn(*theta.shape)
-        p_propose, theta_propose = update(p, theta, x[perm][i: i + args.batchsize])
+        p_propose, theta_propose = update(
+            p, theta, x[perm][i: i + args.batchsize])
 
         if args.rejection_sampling:
             if accept(p, theta, p_propose, theta_propose):

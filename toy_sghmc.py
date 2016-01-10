@@ -2,25 +2,25 @@ from __future__ import print_function
 import argparse
 import math
 
-import chainer
-import matplotlib.pyplot as plt
+from matplotlib import pyplot
 import numpy
 import six
 
 import model
-import stepsize
 import plot
+import stepsize
 
 
 parser = argparse.ArgumentParser(description='SGHMC')
 # data
 parser.add_argument('--N', default=100, type=int, help='training data size')
-parser.add_argument('--batchsize', default=10, type=int, help='batchsize')
-parser.add_argument('--epoch', default=1000, type=int, help='epoch num')
+parser.add_argument('--batchsize', default=1, type=int, help='batchsize')
+parser.add_argument('--epoch', default=100, type=int, help='epoch num')
 # SGLMC parameter
 parser.add_argument('--D', default=0.1, type=float, help='diffusion parameter')
 parser.add_argument('--initialize-moment', action='store_true',
                     help='If true, initialize moment in each sample')
+parser.add_argument('--L', default=10, type=int, help='sampling interval')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--visualize', default='visualize_sghmc.png', type=str,
@@ -36,7 +36,8 @@ def update(p, theta, x, eps):
     def update_p(p, theta, x, eps):
         d_theta = model.calc_grad(theta, x, args.N)
         return ((1 - args.D * eps) * theta + d_theta
-                + math.sqrt(2 * args.D * eps) * numpy.random.randn(*theta.shape))
+                + math.sqrt(2 * args.D * eps)
+                * numpy.random.randn(*theta.shape))
 
     def update_theta(theta, p, eps):
         return theta + p * eps
@@ -58,7 +59,7 @@ for epoch in six.moves.range(args.epoch):
         if args.initialize_moment:
             p = numpy.random.randn(*theta.shape)
         eps = ssg(epoch)
-        for l in six.moves.range(30):
+        for l in six.moves.range(args.L):
             p, theta = update(p, theta, x[perm][i: i + args.batchsize], eps)
 
         theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]

@@ -1,4 +1,3 @@
-from matplotlib import cm
 from matplotlib import pyplot
 import numpy
 
