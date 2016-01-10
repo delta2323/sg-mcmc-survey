@@ -78,7 +78,7 @@ x = model.generate(n)
 for epoch in six.moves.range(EPOCH):
     perm = numpy.random.permutation(n)
     for i in six.moves.range(0, n, batchsize):
-        p = numpy.random.randn(*x.shape)
+        p = numpy.random.randn(*theta.shape)
         H_prev = H(p, theta)
         p_propose, theta_propose = update(p, theta, x[perm][i: i+batchsize])
 
