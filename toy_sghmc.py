@@ -25,8 +25,10 @@ parser.add_argument('--D', default=10, type=float, help='diffusion parameter')
 parser.add_argument('--initialize-moment', action='store_true',
                     help='If true, initialize moment in each sample')
 parser.add_argument('--L', default=10, type=int, help='sampling interval')
-parser.add_argument('--eps-start', default=0.01, type=float, help='start stepsize')
-parser.add_argument('--eps-end', default=0.005, type=float, help='end stepsize')
+parser.add_argument('--eps-start', default=0.01, type=float,
+                    help='start stepsize')
+parser.add_argument('--eps-end', default=0.005, type=float,
+                    help='end stepsize')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--visualize', default='visualize_sghmc.png', type=str,
@@ -65,7 +67,8 @@ for epoch in six.moves.range(args.epoch):
         if args.initialize_moment:
             p = numpy.random.randn(*theta.shape)
         for l in six.moves.range(args.L):
-            p, theta = update(p, theta, x[perm][i: i + args.batchsize], ssg(epoch))
+            p, theta = update(
+                p, theta, x[perm][i: i + args.batchsize], ssg(epoch))
 
         theta1_all[epoch * n_batch + i // args.batchsize] = theta[0]
         theta2_all[epoch * n_batch + i // args.batchsize] = theta[1]

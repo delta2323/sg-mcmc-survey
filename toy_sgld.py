@@ -27,8 +27,10 @@ parser.add_argument('--N', default=100, type=int, help='training data size')
 parser.add_argument('--batchsize', default=10, type=int, help='batchsize')
 parser.add_argument('--epoch', default=1000, type=int, help='epoch num')
 # SGLD parameter
-parser.add_argument('--eps-start', default=0.05, type=float, help='start stepsize')
-parser.add_argument('--eps-end', default=0.01, type=float, help='end stepsize')
+parser.add_argument('--eps-start', default=0.05, type=float,
+                    help='start stepsize')
+parser.add_argument('--eps-end', default=0.01, type=float,
+                    help='end stepsize')
 # others
 parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--visualize', default='visualize_sgld.png', type=str,
