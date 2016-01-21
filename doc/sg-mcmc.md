@@ -604,14 +604,23 @@ SGHMCが提案された論文 [Chen+14]を見ると、このアルゴリズム�
 力に対応する項 $\nabla_{\b\varphi}U(\b\varphi)$ を前述の方法で推定した推定値
 $\widehat{\nabla_{\b\varphi}U}(\b\varphi)$ で置き換えるというアイデアに由来する。
 
+推定値を用いたHMCの更新則は以下の通り。
+
+$$
+\begin{align}
+\b\theta &\leftarrow \b\theta + \b p h\\
+\b p &\leftarrow \b p - \widehat{\nabla_{\b\theta}U}(\b\theta)\\
+\end{align}
+$$
+
 もちろん、単純にこの推定値に置き換えると、運動方程式としては別のものになってしまう。
 では、両者がどのくらい違うものなのかを考えてみよう。
 訓練データ $X$ がi.i.d でサンプリングされていることから、中心極限定理を考えると、
 この推定値は $\nabla_{\b \varphi}U(\theta)$
 を中心としたガウス分布におおよそ従っていると考えられる。
 この分散の値を仮に $V(\b\theta)$ と置こう。
-
-すると、推定値を用いた場合のHMCの更新則は以下のようになる（というかなってしまっている）。
+すると、推定値を用いた場合のHMCの更新則は以下のものと同等である
+（というか同等になってしまっている）。
 
 $$
 \begin{align}
@@ -621,10 +630,15 @@ $$
 \end{align}
 $$
 
-この更新則は以下のSDEを離散化である
-（$\b\zeta\sim \mathcal N (\b 0, V(\b\theta))$ なので、
+$V(\b\theta)$ はサブサンプリングに伴う分散であり、
+実際に $\b\zeta$ のサンプリングを行っているのではなく、
+勾配の推定値を用いることで自動的にサンプリングと同等のことを
+行っていることになることに注意。
+
+$\b\zeta\sim \mathcal N (\b 0, V(\b\theta)$ なので、
 $\b\zeta h \sim \mathcal N (\b 0, V(\b\theta)h^2)$
-であることに注意）。
+であることに注意すると、この更新則は以下のSDEを離散化である。
+
 
 $$
 \begin{align}
@@ -1087,15 +1101,15 @@ $$
 \begin{array}{ll}
 A \left\{
 \begin{matrix}
-d\b\theta = \b pdt\\
-d\b p = 0
+d\b\theta = 0\\
+d\b p = -\nabla_{\b\theta}U(\b\theta) dt
 \end{matrix}
 \right.
 &
 B \left\{
 \begin{matrix}
-d\b\theta = 0\\
-d\b p = -\nabla_{\b\theta}U(\b\theta) dt
+d\b\theta = \b pdt\\
+d\b p = 0
 \end{matrix}
 \right.
 \end{array}
