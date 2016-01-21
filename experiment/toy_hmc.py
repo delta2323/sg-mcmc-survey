@@ -121,5 +121,6 @@ for epoch in six.moves.range(args.epoch):
 
 fig, axes = pyplot.subplots(ncols=1, nrows=1)
 plot.visualize2D(fig, axes, theta1_all, theta2_all,
-                 xlabel='theta1', ylabel='theta2')
+                 xlabel='theta1', ylabel='theta2',
+                 xlim=(-4, 4), ylim=(-4, 4))
 fig.savefig(args.visualize)
