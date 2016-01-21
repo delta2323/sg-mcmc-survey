@@ -1,48 +1,9 @@
 $\newcommand{\b}[1]{\boldsymbol{#1}}$
 
-# 最近のMCMCについて
+# Stochastic Gradient MCMC法について
 
-## 目次
-
-* MCMC基礎
-  * Metropolis-Hasting
-  * 今回話さない話
-    * レプリカ交換法（parallel tempering）
-    * Importance Sampling
-* 問題設定
-  * 今回は値域が連続の場合を考える
-  * 事後分布からサンプリングする問題に限定
-* 必要な道具
-  * 確率的にする方法
-  * SDEとその離散化の方法
-* 各手法の詳細説明
-  * HMC
-    * 解析力学からの事前知識
-    * Leapfrog法
-    * Hamiltonianが保存している->提案を棄却する必要がない
-  * SGLD
-    * 1st orderのLangevin Dynamicsを離散化したもの（Brownian Dynamicsとも呼ばれたりする）
-    * SDEを考えているの確率的にすることによるノイズが無視できないという話
-  * SGHMC
-    * 2nd orderのLangevin Dynamicsを離散化したもの
-    * HMC, SGLDとの関係
-      * HMCを確率的にし、確率的にしたことによるノイズを入れて、摩擦の項を入れるとSGHMC
-      * SGHMCでのLangevin Dynamicsを質量を0にした極限がSGLDのLangevin Dynamics
-  * (m)SGNHT
-    * Thermostatに対応する変数を導入してエネルギーをコントロールする
-    * SGNHTとmSGNHTの関係
-    * SSIによる近似精度の向上
-      * 本質的にはBaker–Campbell–Hausdorff formulaから来る
-      * Leapfrog法と少し似ている
-  * Santa
-    * 一言で言うと、RMSprop + mSGNHT
-      * mSGNHTにRMSpropのPreconditionerを入れる
-      * さらにSimulated Annealingすることで、逆温度が低いときは事後分布からの
-      サンプリングで、その逆温度が無限大の極限では事後分布のmodeを探索するようになる
-    * SSIによる近似精度向上もできる
-* 実験
-  * 実験設定
-  * 実験結果
+大野健太 (oono@preferred.jp)
+2016年1月21日初版
 
 ## Notation
 
@@ -55,21 +16,22 @@ $\newcommand{\b}[1]{\boldsymbol{#1}}$
 * $K(\b{p})$: 運動エネルギー
 * $H(\b{\theta}, \b{p})$, $H(\b{\theta}, \b{p})$,
 $H(\b{\theta}, \b{p}, \b{\xi})$: ハミルトニアン
-* $\mathcal{N}(\b{\mu}, \Sigma)$: 平均$\b{\mu}$, 分散$\Sigma$のガウス分布
+* $\mathcal{N}(\b{\mu}, \Sigma)$: 平均 $\b{\mu}$ , 分散 $\Sigma$ のガウス分布
+* $x_i \sim p(x | \theta)$:  $x_i$ を $p(x|\theta)$ からサンプリングする
 * $\b{x}$: 訓練データ
 * $X = \{ \b{x}_1, \ldots, \b{x}_N \}$: 訓練データセット
-* $t = 1, \ldots, T$: 時刻（ 離散・連続時刻両方で$t$ を使う）
-* $\beta$, $\beta_t$: 逆温度
-* $d\b W$: ワイナー過程
-* $\b a \odot \b b$: $\b a$と$\b b$のアダマール積（要素ごとの掛け算）
-* $\b 0$, $\b 1$: 全要素が0, 1のベクトル
-* $I$: 単位行列
-* $h, h_t$: ステップ幅
-* $\hat{a}$: $a$の推定値（推定値にはハットをつける）
-* $x_i \sim p(x | \theta)$:  $x_i$ を $p(x|\theta)$ からサンプリングする
 * $|X|$: 集合$X$の要素数
-* $A : B$: 行列 $A, B$ の要素ごとの積の和 $\mathrm{tr} (A^TB)$ (double dot productというらしい)
-* $\mathrm{diag} (\b v)$: ベクトル$\b v$の成分を対角線上に並べた行列
+* $t = 1, \ldots, T$: 時刻（ 離散・連続時刻両方で $t$ を使う）
+* $h$: ステップ幅
+* $\beta$: 逆温度
+* $\hat{a}$: $a$の推定値（推定値にはハットをつける）
+* $I$: 単位行列
+* $\mathrm{diag} (\b v)$ : ベクトル $\b v$ の成分を対角線上に並べた行列
+* $\b a \odot \b b$: $\b a$ と $\b b$ のアダマール積（要素ごとの掛け算）
+* $\b 0$, $\b 1$: 全要素が0, 1のベクトル
+* $A : B$: 行列 $A, B$ の要素ごとの積の和 $\mathrm{tr} (A^TB)$
+(double dot productというらしい)
+* $A^T$: 行列 $A$ の転置行列
 
 ## 略語
 
@@ -107,8 +69,6 @@ $$
 \end{align}
 $$
 とすれば推定値が得られるが、パラメータが高次元になるとこの方法による多重積分の推定は困難になる。
-
-（ここまでテンプレ）
 
 この困難を解消する方法としては、事後分布の推定の方法としては、少なくとも2つの方法がある
 * サンプリング：事後分布 $p(\b\theta |X)$ からサンプリングをして、
@@ -157,7 +117,9 @@ d\b\varphi_t = \b\mu(\b\varphi_t, t)dt + \mathcal N(\b0, 2D(\b\varphi_t, t)dt)
 \end{align}
 $$
 
-に従うとする。ここで、$\b\mu$ は $n$ 次元のベクトル値の決定的な関数, $D$ は $n \times n$ の行列値の決定的な関数で、 $N(\b0, D(\b\varphi_t, t)dt)$ は $N$ 次元のワイナー過程である。
+に従うとする。ここで、$\b\mu$ は $n$ 次元のベクトル値の決定的な関数,
+$D$ は $n \times n$ の行列値の決定的な関数で、 $N(\b0, D(\b\varphi_t, t)dt)$
+ は $N$ 次元のワイナー過程である。
 この時、時刻 $t$ での $\b\varphi_t$ の確率分布 $p_t(\b\varphi)$はPDE
 
 $$
@@ -176,7 +138,7 @@ $X_t$ に対応するのはパラメータ $\b\varphi_t$ である
 今後、SDEやPDEを考える時にはパラメータ $\b\varphi$, $\b\theta$ などは時刻
 $t$ の関数となっていることに注意）。
 
-## カノニカル分布とは？
+## カノニカル分布
 
 確率分布をパラメータ空間の質点の運動を用いて確率分布からサンプリングを行うためには、
 質点の運動に関わる物理量とサンプリングしたい確率分布を関連付ける関係性が必要となる。
@@ -343,14 +305,10 @@ $\nabla_{\b\theta} \log p(X|\b\theta)$ は誤差逆伝播で計算可能であ�
 従って、ポテンシャルエネルギーの勾配、すなわち運動方程式では
 力に対応する値も計算できることがわかる。
 
-## 各MCMCサンプリングの運動方程式
-
+## HMC
 前述した通り、質点の運動を支配する運動方程式を様々なものに設定することにより、
 各サンプリングの手法が得られる。
 では、具体的に各手法で利用される運動方程式を見ていこう。
-
-## HMC
-
 HMCでは、古典的な運動方程式（正準方程式）を考える。
 
 $$
@@ -396,7 +354,8 @@ $$
 
 さて、この更新を行うにはポテンシャルエネルギーの勾配
 $-\nabla_{\b\theta}U(\b\theta)$ を計算できる必要がある。
-この値は既に出てきており事後分布の対数 の勾配 $\nabla_{\b\theta} \log p(\b\theta|X)$  （より一般的な問題設定ならば、サンプリングを行いたい確率分布を $p(\b\varphi)$ としたら、
+この値は既に出てきており事後分布の対数 の勾配 $\nabla_{\b\theta} \log p(\b\theta|X)$
+（より一般的な問題設定ならば、サンプリングを行いたい確率分布を $p(\b\varphi)$ としたら、
 $\nabla_{\b\varphi} \log p(\b\varphi)$ ）であった。
 前節で解説した通りこの値は計算できることを仮定している。
 
@@ -411,7 +370,9 @@ $$
 \end{align}
 $$
 
-この方法では、 時刻 $t$ の $\b\theta$ から時刻 $t+h$ の $\b\theta$ を得るのに、時刻 $t$ での $\b p$ から得られる勾配を利用している（今回の場合勾配  $\frac{\partial d\b\theta}{\partial t}$ は $\b p$ そのものである）。
+この方法では、 時刻 $t$ の $\b\theta$ から時刻 $t+h$ の $\b\theta$ を得るのに、
+時刻 $t$ での $\b p$ から得られる勾配を利用している（今回の場合勾配
+$\frac{\partial d\b\theta}{\partial t}$ は $\b p$ そのものである）。
 
 これを次のように変更することで、離散化による近似誤差を減らす手法である。
 
@@ -423,7 +384,8 @@ $$
 \end{align}
 $$
 
-すなわち、時刻 $t$ から $t+h$ での $\b\theta$ の更新に時刻 $t+h/2$ での $\b p$の推定値を利用する。同様のことは $\b p$ の更新でもできる：
+すなわち、時刻 $t$ から $t+h$ での $\b\theta$ の更新に時刻 $t+h/2$ での
+$\b p$の推定値を利用する。同様のことは $\b p$ の更新でもできる：
 
 $$
 \begin{align}
@@ -453,7 +415,9 @@ $$
 であるのに対して、
 
 $$
-\exp\left(\frac{h}{2} L_{\b p}\right)\exp(hL_{\b\theta})\exp\left(\frac{h}{2} L_{\b p}\right) = \exp(h(L_{\b\theta} + L_{\b p})) + O(h^3)
+\exp\left(\frac{h}{2} L_{\b p}\right)\exp(hL_{\b\theta})
+\exp\left(\frac{h}{2} L_{\b p}\right)
+= \exp(h(L_{\b\theta} + L_{\b p})) + O(h^3)
 $$
 
 となることに由来する。
@@ -462,19 +426,21 @@ $$
 ## HMC法のアルゴリズム
 
 以上を元に、HMCのアルゴリズムは次のようになる。
-このサンプリング方法で、きちんと事後分布 $p(\b\theta |X)$ からサンプリングが行えることの証明は元論文を参照されたい。
+このサンプリング方法で、きちんと事後分布 $p(\b\theta |X)$
+からサンプリングが行えることの証明は元論文を参照されたい。
 
 $$
 \begin{align}
 & \text{Initialize $\b \theta$}\\
 & \text{For $i = 1$ to $\infty$}\\
 & \qquad \b p \sim N(\b 0, I)\\
-& \qquad \b p \leftarrow \b p - \frac{h}{2} \widehat{\nabla_{\b\theta}U}(\b\theta)\\
+& \qquad \b p \leftarrow \b p - \frac{h}{2} \nabla_{\b\theta}U(\b\theta)\\
 & \qquad \text{For $l = 1$ to $L$}\\
 & \qquad \qquad \b\theta \leftarrow \b\theta + h \b p\\
 & \qquad \qquad \text{If $l \not = L$}\\
-& \qquad \qquad \qquad \b p \leftarrow \b p - h \widehat{\nabla_{\b\theta}U}(\b\theta)\\
-& \qquad \b p \leftarrow \b p - \frac{h}{2} \widehat{\nabla_{\b\theta}U}(\b\theta)\\
+& \qquad \qquad \qquad \b p \leftarrow \b p -
+h\nabla_{\b\theta}U(\b\theta)\\
+& \qquad \b p \leftarrow \b p - \frac{h}{2} \nabla_{\b\theta}U(\b\theta)\\
 & \qquad \text{Accept $\b\theta$}
 \end{align}
 $$
@@ -517,13 +483,20 @@ d\b p &= \nabla_{\b \theta} U(\b\theta)dt - A\b pdt + \mathcal N(\b 0, 2AId t)
 \end{align}
 $$
 
-ここで、 $A$ はスカラー値、 $\mathcal N(\b 0, 2AId t)$ はパラメータ $\b\theta$ と同次元の（従って $\b p$と同次元の）ワイナー過程である。
+ここで、 $A$ はスカラー値、 $\mathcal N(\b 0, 2AId t)$ はパラメータ $\b\theta$
+と同次元の（従って $\b p$と同次元の）ワイナー過程である。
 ワイナー過程は微小時間 $dt$ の間に平均0、分散 $2AIdt$ のブラウン運動を行う確率過程である。
 先ほどのHMCは1回の微分方程式だったので、初期位置を決めればその後の運動は一意的に決定される。
 それに対して、この方程式はワイナー過程が入るために初期位置を決めてもその後の運動は
 確率的にしか決まらないことに注意。
 
-そこで、物体の位置を確率分布として与えて、その確率分布が時間と共にどのように変化するかを考えよう。前述のFokker-Planck方程式を今回の場合に適用すると、 $\exp(-H(\b\theta, \b p))$  に比例する確率分布 $p(\b\theta, \b p)$ が、このSDEの定常状態となっていることがわかる。従って、この確率分布を周辺化した $p(\b\theta) \propto \exp(-U(\b\theta))$ も $\theta$ に関して定常分布となっている。 詳しい導出はSGHMCの論文のTheorem3.2を参照されたい。また、本当は適当な初期分布から初めて、十分時間が経ったときに定常分布に終息するということは別途証明しなければならないが、今回は割愛する。
+そこで、物体の位置を確率分布として与えて、その確率分布が時間と共にどのように変化するかを考えよう。
+前述のFokker-Planck方程式を今回の場合に適用すると、 $\exp(-H(\b\theta, \b p))$
+に比例する確率分布 $p(\b\theta, \b p)$ が、このSDEの定常状態となっていることがわかる。
+従って、この確率分布を周辺化した $p(\b\theta) \propto \exp(-U(\b\theta))$ も
+$\theta$ に関して定常分布となっている。 詳しい導出はSGHMCの論文のTheorem3.2を参照されたい。
+また、本当は適当な初期分布から初めて、
+十分時間が経ったときに定常分布に終息するということは別途証明しなければならないが、今回は割愛する。
 
 ## SGHMCのアルゴリズム
 
@@ -536,7 +509,8 @@ $$
 & \qquad \text{For $l = 1$ to $L$}\\
 & \qquad \qquad \b\theta \leftarrow \b\theta + \b p h \\
 & \qquad \qquad \b\zeta \sim \mathcal N(\b 0, 2AhI)\\
-& \qquad \qquad \b p \leftarrow (1-Ah)\b p + \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
+& \qquad \qquad \b p \leftarrow (1-Ah)\b p
++ \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
 & \qquad \text{Accept $\b\theta$}
 \end{align}
 $$
@@ -567,7 +541,8 @@ for epoch in six.moves.range(EPOCH):
 
 ## エルゴード性
 
-アルゴリズムをみると、サンプリングはパラメータの初期状態を適当に決めて、運動方程式に従って更新している。
+上記のアルゴリズムをみると、サンプリングはパラメータの初期状態を適当に決めて、
+運動方程式に従って更新している。
 つまり、一つの質点の運動を長い時間観測し、定期的にその位置をサンプリングしていることに対応している。
 一方で定常状態は、パラメータの初期分布を適当に決めて、その分布を運動方程式に従って変化させていく。
 つまり、たくさんの質点をパラメータ空間にばらまき、それをしばらく放っておくと定常状態となるので、
@@ -575,13 +550,15 @@ for epoch in six.moves.range(EPOCH):
 前者は1つの質点を長時間観測しているのに対し、後者は多数の質点のある瞬間を観測している。
 この2つが同じ分布になることは自明ではない。この2つが実は一致する時、エルゴードを持つと言う。
 
-今回のSGHMCはこのエルゴード性を持つ。そのため、前述のアルゴリズムのように、1点を適当に取りその流れを適宜サンプリングすれば、
+今回のSGHMCはこのエルゴード性を持つ。
+そのため、前述のアルゴリズムのように1点を適当に取りその流れを適宜サンプリングすれば、
 SGHMCがエルゴード性を持つことの証明は今回は割愛する。
 また、HMCはエルゴード性を持たないことに注意しよう。
 運動方程式に従って質点が運動している間、ハミルトニアンが保存するため、
 スタートの時に持っていたハミルトニアンの等エネルギー面から外れることができない。
 これでは、今回はパラメータの同時分布が $\exp(H(\varphi))$ に従う分布を再現できないためである。
-そのために、HMCのサンプリングアルゴリズムでは、運動量 $\b p$ の初期位置をサンプリングの度に引き直している。
+そのために、HMCのサンプリングアルゴリズムでは、
+運動量 $\b p$ の初期位置をサンプリングの度に引き直している。
 
 ## MCMCを確率的にする基本アイデア
 
@@ -630,7 +607,8 @@ $\widehat{\nabla_{\b\varphi}U}(\b\varphi)$ で置き換えるというアイデ�
 もちろん、単純にこの推定値に置き換えると、運動方程式としては別のものになってしまう。
 では、両者がどのくらい違うものなのかを考えてみよう。
 訓練データ $X$ がi.i.d でサンプリングされていることから、中心極限定理を考えると、
-この推定値は $\nabla_{\b \varphi}U(\theta)$ を中心としたガウス分布におおよそ従っていると考えられる。
+この推定値は $\nabla_{\b \varphi}U(\theta)$
+を中心としたガウス分布におおよそ従っていると考えられる。
 この分散の値を仮に $V(\b\theta)$ と置こう。
 
 すると、推定値を用いた場合のHMCの更新則は以下のようになる（というかなってしまっている）。
@@ -651,7 +629,7 @@ $\b\zeta h \sim \mathcal N (\b 0, V(\b\theta)h^2)$
 $$
 \begin{align}
 d\b\theta &= \b p dt \\
-d\b p &= \nabla_{\b \theta} U(\b\theta)dt + \mathcal N(\b 0, V(\theta)hdt)
+d\b p &= -\nabla_{\b \theta} U(\b\theta)dt + \mathcal N(\b 0, V(\theta)hdt)
 \end{align}
 $$
 
@@ -666,30 +644,35 @@ $p(\b\theta, \b p)\propto \exp(-H(\b\theta, \b p))$ はこの運動方程式の�
 計算コストが高くなり、サンプリングをした場合には高確率で棄却されてしまうことを指摘している。
 
 そこで、別の方法として、定常分布が所望のカノニカル分布になるようにSDEを修正する。
-そのために、 $B(\b\theta) = \frac{1}{2}V(\b\theta)h$ として、この値に依存する摩擦の項を加えたSDEを考える。
+そのために、 $B(\b\theta) = \frac{1}{2}V(\b\theta)h$ として、
+この値に依存する摩擦の項を加えたSDEを考える。
 
 $$
 \begin{align}
 d\b\theta &= \b p dt \\
-d\b p &= \nabla_{\b \theta} U(\b\theta)dt - B(\b\theta)\b pdt + \mathcal N(\b 0, 2B(\b\theta)dt)
+d\b p &= -\nabla_{\b \theta} U(\b\theta)dt
+- B(\b\theta)\b pdt + \mathcal N(\b 0, 2B(\b\theta)dt)
 \end{align}
 $$
 
 すると、Fokker-Planck方程式の一般論より、カノニカル分布が定常分布になることが示される。
 このSDEをそのまま離散化して更新則を得ると、次のようになる。
-$\widehat{\nabla_{\b \theta} U}(\b\theta) = \nabla_{\b \theta} U(\b\theta) + \mathcal N (\b 0, V(\b\theta))$
+$\widehat{\nabla_{\b \theta} U}(\b\theta)
+= \nabla_{\b \theta} U(\b\theta) + \mathcal N (\b 0, V(\b\theta))$
 より、ノイズの項が消えることに注意。
 
 $$
 \begin{align}
 \b\theta &\leftarrow \b\theta + \b p h \\
-\b p &\leftarrow \b p + \widehat{\nabla_{\b \theta} U}(\b\theta)h - B(\b\theta)\b ph
+\b p &\leftarrow \b p +
+\widehat{\nabla_{\b \theta} U}(\b\theta)h - B(\b\theta)\b ph
 \end{align}
 $$
 
-この更新則に現れる $B(\b\theta)$ は $\nabla_{\b \theta} U$ のサンプリングに伴う分散に由来するため、
-実際の値を求めることはできない。
-それを回避する最も簡単な方法は、$B(\b\theta)$ の代わりに、その推定値 $B(\b\theta)$ を用いるというものである。
+この更新則に現れる $B(\b\theta)$ は $\nabla_{\b \theta} U$
+のサンプリングに伴う分散に由来するため、実際の値を求めることはできない。
+それを回避する最も簡単な方法は、$B(\b\theta)$ の代わりに、
+その推定値 $B(\b\theta)$ を用いるというものである。
 [Chen+14] では別の回避方法も提案している。
 それは、 $\widehat{B}$ の他に $C(\b\theta) \succeq \widehat{B}(\b\theta)$ となる
 半正定値行列値関数 $C$ を用意して、次のSDEを考えるというものである。
@@ -698,7 +681,8 @@ $$
 \begin{align}
 d\b\theta &= \b p dt \\
 d\b p &= \nabla_{\b \theta} U(\b\theta)dt - C(\b\theta)\b pdt
-+ \mathcal N(\b 0, 2(C(\b\theta)-\widehat{B}(\b\theta))dt) + \mathcal N (\b 0, 2B(\b\theta)dt)
++ \mathcal N(\b 0, 2(C(\b\theta)-\widehat{B}(\b\theta))dt)
++ \mathcal N (\b 0, 2B(\b\theta)dt)
 \end{align}
 $$
 
@@ -710,18 +694,21 @@ $$
 \begin{align}
 \b\theta &\leftarrow \b\theta + \b p h \\
 \b\zeta &\sim \mathcal N (\b 0, 2(C(\b\theta)-\widehat{B}(\b\theta))dt)\\
-\b p &\leftarrow \b p + \widehat{\nabla_{\b \theta} U}(\b\theta)h - C(\b\theta)\b ph + \b\zeta
+\b p &\leftarrow \b p + \widehat{\nabla_{\b \theta} U}(\b\theta)h
+- C(\b\theta)\b ph + \b\zeta
 \end{align}
 $$
 
 実際にはできないが、$C = B$ とすれば、一つ目の回避方法に帰着される。
 $B$ が $B = \frac{h}{2}V$ と $O(h)$ の大きさを持っているため、
 $C$ 十分大きい値とし、時間幅 $h$ を十分小さくすれば、
-推定が難しい $\widehat{B}$ の影響が小さくなり、ユーザーのコントロールできる $C$ の値が支配的になる。
+推定が難しい $\widehat{B}$ の影響が小さくなり、
+ユーザーのコントロールできる $C$ の値が支配的になる。
 これが、新たに $C \succeq \widehat{B}$ なる項を設ける利点である。
 
 後述するSGLD, SGNHT, mSGNHT, Santaでも推定値を利用する場合にも、
-それに由来するノイズをキャンセルするための上記の修正を必要に応じて行わなければならないことに注意する。
+それに由来するノイズをキャンセルするための上記の修正を
+必要に応じて行わなければならないことに注意する。
 ここでは、その修正は行わずに、更新則には本来の勾配の値 $\nabla_{\b\varphi} U(\b\varphi)$
 を利用することにする。
 
@@ -731,13 +718,15 @@ SGLDは次の1次のLangevin Dynamicsを離散化したものである。
 
 $$
 \begin{align}
-d\b\theta =  \nabla_{\b \theta} U(\b\theta) dt + \mathcal N(\b 0, 2Idt)
+d\b\theta =  -\nabla_{\b \theta} U(\b\theta) dt + \mathcal N(\b 0, 2Idt)
 \end{align}
 $$
 
-HMC, SGHMCとは異なりSGLDには運動量に対応するパラメータ $\b p$ は存在しない。更新されるのは元のモデルのパラメータ $\b\theta$ のみである。
+HMC, SGHMCとは異なりSGLDには運動量に対応するパラメータ $\b p$ は存在しない。
+更新されるのは元のモデルのパラメータ $\b\theta$ のみである。
 
-SGHMCの時と同様に、 $p(\b\theta) \propto \exp(-U(\b\theta))$ がこの方程式の定常状態である事やエルゴード性が成り立つ。
+SGHMCの時と同様に、 $p(\b\theta) \propto \exp(-U(\b\theta))$
+がこの方程式の定常状態である事やエルゴード性が成り立つ。
 従って、運動方程式を離散化すれば、サンプリングのアルゴリズムは次の通り。
 
 $$
@@ -746,7 +735,8 @@ $$
 & \text{For $i = 1$ to $\infty$}\\
 & \qquad \text{For $l = 1$ to $L$}\\
 & \qquad \qquad \b\zeta \sim \mathcal N(\b 0, 2Ih)\\
-& \qquad \qquad \b\theta \leftarrow \b\theta + \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
+& \qquad \qquad \b\theta \leftarrow \b\theta -
+\nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
 & \qquad \text{Accept $\b\theta$}
 \end{align}
 $$
@@ -770,14 +760,15 @@ for epoch in six.moves.range(EPOCH):
 ## SGHMCからSGLDの導出
 
 SGLDはSGHMCの極限をとったものと見る事ができる。
-歴史的にはSGLDは2011年でSGHMCは2014年なので、順序としては逆だが、SGHMCからSGLDを導出してみよう。
+歴史的にはSGLDは2011年でSGHMCは2014年なので順序としては逆だが、
+SGHMCからSGLDを導出してみよう。
 
 まず、SGHMCを以下のように微分方程式の形に直しておく
 
 $$
 \begin{align}
 \frac{d\b\theta}{dt} &= A\b p \\
-\frac{d\b p}{dt} &= \nabla_{\b \theta} U(\b\theta) - A\b p + \b\zeta \\
+\frac{d\b p}{dt} &= -\nabla_{\b \theta} U(\b\theta) - A\b p + \b\zeta \\
 \b\zeta & = \mathcal N(\b 0, 2AI)
 \end{align}
 $$
@@ -795,7 +786,8 @@ $\b p$を消去すると
 
 $$
 \begin{align}
-A \frac{d^2\b\theta}{dt^2} &= \nabla_{\b \theta} U(\b\theta) - A\frac{d\b\theta}{dt} + \b\zeta
+A \frac{d^2\b\theta}{dt^2}
+&= -\nabla_{\b \theta} U(\b\theta) - A\frac{d\b\theta}{dt} + \b\zeta
 \end{align}
 $$
 
@@ -804,7 +796,8 @@ $$
 
 $$
 \begin{align}
-A \frac{d^2\b\theta}{du^2} &= \nabla_{\b \theta} U(\b\theta) - \frac{d\b\theta}{du} + \tilde{\b\zeta}
+A \frac{d^2\b\theta}{du^2}
+&= -\nabla_{\b \theta} U(\b\theta) - \frac{d\b\theta}{du} + \tilde{\b\zeta}
 \end{align}
 $$
 
@@ -813,7 +806,8 @@ $$
 $$
 \begin{align}
 \left< \tilde{\b\zeta(u)} \right> &= \b 0\\
-\left< \tilde{\b\zeta_i}(u), \tilde{\b\zeta_j}(v) \right> &= \delta_{ij} (u - v))
+\left< \tilde{\b\zeta_i}(u), \tilde{\b\zeta_j}(v) \right>
+&= \delta_{ij} (u - v))
 \end{align}
 $$
 
@@ -821,7 +815,7 @@ $$
 
 $$
 \begin{align}
-\b 0 &= \nabla_{\b \theta} U(\b\theta) - \frac{d\b\theta}{du} + \tilde{\b\zeta}
+\b 0 &= -\nabla_{\b \theta} U(\b\theta) - \frac{d\b\theta}{du} + \tilde{\b\zeta}
 \end{align}
 $$
 
@@ -829,13 +823,28 @@ $$
 
 $$
 \begin{align}
-d\b\theta =  \nabla_{\b \theta} U(\b\theta) dt + \mathcal N(\b 0, 2Idt)
+d\b\theta = -\nabla_{\b \theta} U(\b\theta) dt + \mathcal N(\b 0, 2Idt)
 \end{align}
 $$
 
+## SGLRD
+
+SGLRDはSGLDで考えた1次のLangevin Dynamicsに、
+パラメータ空間の幾何的な情報を加えた運動方程式を考える
+
+$$
+d\b\theta = -G(\b\theta)\nabla_{\b\theta}U(\b\theta)dt
++ \nabla_{\b\theta} G(\b\theta)dt + \mathcal N(\b 0, 2G(\b\theta)dt)
+$$
+
+ここで、$G(\b\theta)$ はフィッシャー行列の逆行列である。
+$G(\b\theta) = I$ ととると、SGLDに帰着される。
+
+
 ## SGNHT
 
-SGLDはSGHMCの極限をとり、変数を消去する事で得られたが、SGNHTは逆に系をコントロールする新しい変数を導入することで得られる。
+SGLDはSGHMCの極限をとり変数を消去する事で得られたが、
+SGNHTは逆に系をコントロールする新しい変数を導入することで得られる。
 
 具体的には、これまでと同様のモデルのパラメータ $\b\theta$, 運動量に対応するパラメータ $\b p$
 の他に、スカラー値のパラメータ $\xi$ を導入し、次の運動方程式を考える
@@ -843,7 +852,8 @@ SGLDはSGHMCの極限をとり、変数を消去する事で得られたが、SG
 $$
 \begin{align}
 d\b\theta &= \b p dt \\
-d\b p &= \left(\nabla_{\b \theta} U(\b \theta) - \xi \b p\right) dt + \mathcal N (\b 0, 2AIdt)\\
+d\b p &= -\nabla_{\b \theta} U(\b \theta)dt
+- \xi \b p dt + \mathcal N (\b 0, 2AIdt)\\
 d\xi &= \left( \frac{1}{d} \b p^T \b p - 1\right) dt.
 \end{align}
 $$
@@ -858,8 +868,10 @@ $$
 & \qquad \text{For $l = 1$ to $L$}\\
 & \qquad \qquad \b\theta \leftarrow \b\theta + \b p h\\
 & \qquad \qquad \b\zeta \sim \mathcal N(\b 0, 2AIh)\\
-& \qquad \qquad \b p \leftarrow (1 - \xi h)\b p + \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
-& \qquad \qquad \xi \leftarrow \xi + \left( \frac{1}{d} \b p^T \b p - 1\right) h\\
+& \qquad \qquad \b p \leftarrow (1 - \xi h)\b p
+- \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
+& \qquad \qquad \xi \leftarrow \xi
++ \left( \frac{1}{d} \b p^T \b p - 1\right) h\\
 & \qquad \text{Accept $\b\theta$}
 \end{align}
 $$
@@ -894,26 +906,33 @@ for epoch in six.moves.range(args.epoch):
 
 ## SGNHTの直感的解釈
 
-では、この運動方程式について、もう少し考える。そのために唐突であるが、 運動エネルギー $K(\b p)$
-の期待値 $\mathbb{E}_{\b p}\left[ K(\b p)\right]$ を計算してみよう。
-我々は運動エネルギー $K(\b p)$ を $K(\b p) = \frac{1}{2} \b p^T \b p$ と定義したことを思い出そう。
-また、期待値は定常状態での $\b p$ の 確率分布 $p(\b p) \propto \exp(-K(\b p))$ についてとる。
+では、この運動方程式について、もう少し考える。
+そのために唐突であるが、運動エネルギー $K(\b p)$の期待値
+$\mathbb{E}_{\b p}\left[ K(\b p)\right]$ を計算してみよう。
+我々は運動エネルギー $K(\b p)$ を $K(\b p) = \frac{1}{2} \b p^T \b p$
+と定義したことを思い出そう。
+また、期待値は定常状態での $\b p$ の 確率分布
+$p(\b p) \propto \exp(-K(\b p))$ についてとる。
 
 $$
 \begin{align}
-\mathbb{E}_{\b p} \left[K(\b p)\right] &= \int \left[\frac{1}{2} \b p^T \b p\right]
+\mathbb{E}_{\b p} \left[K(\b p)\right]
+&= \int \left[\frac{1}{2} \b p^T \b p\right]
 \left[\frac{1}{Z_K} \exp\left(-\frac{1}{2}\b p^T \b p\right) \right]d\b p\\
-&= \frac{1}{Z_K} \sum_{i=1}^{d} \left[\int \frac{1}{2}p_i^2 \exp\left(-\frac{1}{2} p_i^2\right)dp_i
+&= \frac{1}{Z_K} \sum_{i=1}^{d}
+\left[\int \frac{1}{2}p_i^2 \exp\left(-\frac{1}{2} p_i^2\right)dp_i
 \prod_{j \not=i} \int \exp\left( -\frac{1}{2} p_j^2 \right) dp_j \right]\\
 \end{align}
 $$
 
-ここで、$Z_K$ は $\exp(-K(\b p)))$ についての分配関数 $Z_K = \int \exp(-K(\b p)) d\b p$
-であった。部分積分により、
+ここで、$Z_K$ は $\exp(-K(\b p)))$ についての分配関数
+$Z_K = \int \exp(-K(\b p)) d\b p$であった。
+部分積分により、
 
 $$
 \begin{align}
-\int \frac{1}{2} p_i^2 \exp\left(-\frac{1}{2} p_i^2\right)dp_i = \frac{1}{2} \int \exp\left(-\frac{1}{2} p_i^2\right)dp_i
+\int \frac{1}{2} p_i^2 \exp\left(-\frac{1}{2} p_i^2\right)dp_i
+= \frac{1}{2} \int \exp\left(-\frac{1}{2} p_i^2\right)dp_i
 \end{align}
 $$
 
@@ -949,14 +968,16 @@ $\b p$ に関する方程式を見ると、$\xi$ は摩擦に対応する項と�
 
 ## mSGNHT
 
-SGNHTでは、サーモスタットの役割を果たす変数として $\xi$ 1つを用意し、 $\b p$ 全体をコントロールしたが、
-mSGNHTでは、 $\b p$ の各次元に対してサーモスタットを用意して各次元をコントロールする。
+SGNHTでは、サーモスタットの役割を果たす変数として $\xi$ 1つを用意し、
+$\b p$ 全体をコントロールしたが、mSGNHTでは、
+$\b p$ の各次元に対してサーモスタットを用意して各次元をコントロールする。
 すなわち、 $\b p$ と同次元の変数 $\b \xi$ を用意し、以下の運動方程式を考える。
 
 $$
 \begin{align}
 d\b\theta &= \b p dt \\
-d\b p &= \left(\nabla_{\b \theta} U(\b \theta) - \b\xi \odot \b p\right) dt + \mathcal N (\b 0, 2AIdt)\\
+d\b p &= -\nabla_{\b \theta} U(\b \theta)dt
+- \b\xi \odot \b p dt + \mathcal N (\b 0, 2AIdt)\\
 d\b\xi &= \left( \b p \odot \b p - \b 1\right) dt.
 \end{align}
 $$
@@ -970,7 +991,8 @@ $$
 & \qquad \text{For $l = 1$ to $L$}\\
 & \qquad \qquad \b\theta \leftarrow \b\theta + \b p h\\
 & \qquad \qquad \b\zeta \sim \mathcal N(\b 0, 2AIh)\\
-& \qquad \qquad \b p \leftarrow (\b 1 - \b\xi h)^T\b p + \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
+& \qquad \qquad \b p \leftarrow (\b 1 - \b\xi h)^T\b p
+- \nabla_{\b \theta} U(\b\theta) h + \b\zeta\\
 & \qquad \qquad \xi \leftarrow \xi + \left( \b p \odot \b p - 1\right) h\\
 & \qquad \text{Accept $\b\theta$}
 \end{align}
@@ -1009,24 +1031,46 @@ for epoch in six.moves.range(args.epoch):
 $$
 \begin{align}
 d\b\theta &= G_1(\b\theta) \b pdt\\
-d\b p &= \left(\nabla_{\b \theta} U(\b \theta) - \b \xi \b p\right) dt + \b F(\b\theta, \b\xi) dt + \left(\frac{2}{\beta} G_2(\b\theta)\right) d\b W\\
+d\b p &= -G_1(\b\theta)\nabla_{\b \theta} U(\b \theta)dt
+- \b \xi \b p dt + \b F(\b\theta, \b\xi) dt
++ \mathcal N \left(\b 0, \frac{2}{\beta} G_2(\b\theta)dt \right)\\
 d\b\xi &= \left(\b p\odot \b p - \frac{\b 1}{\beta}\right) dt
 \end{align}
 $$
-ここで、$\b F(\b\theta, \b\xi) = \frac{1}{\beta} \nabla_{\b \theta} G_1(\b\theta) + G_1(\b\theta)\left(\b\xi - G_2(\b\theta)\right) \nabla_{\b \theta} G_2(\b\theta).$
+
+ここで、
+$$
+\b F(\b\theta, \b\xi)
+= \frac{1}{\beta} \nabla_{\b \theta} G_1(\b\theta)
++ G_1(\b\theta)\left(\b\xi - G_2(\b\theta)\right)
+\nabla_{\b \theta} G_2(\b\theta).
+$$
+
+このSDEは以下の同時分布を不変分布として持つ
+
+$$
+\begin{align}
+p(\b\theta, \b p, \b\xi) &\propto \exp(-\beta H(\b\theta, \b p, \b\xi))\\
+H(\b\theta, \b p, \b\xi)) &= U(\b\theta) + K(\b p) + V(\b\theta, \b\xi)\\
+V(\b\xi) &= \frac{1}{2}
+(\mathrm{diag}(\b\xi) - G_2 (\b\theta))^T
+(\mathrm{diag}(\b\xi) - G_2 (\b\theta))
+\end{align}
+$$
 
 
+## Symmetric Splittingによる近似精度向上
 
-## SSIによる近似精度向上
+Leapfrog法では、時刻 $t$ から 時刻 $t+h$ での $\b\theta$ の更新に、
+時刻 $t+h/2$ での$\b p$ の値を用いることで、近似誤差を減らした。
+このアイデアはSymmetric Splittingという方法に一般化することができる。
 
-Leapfrog法では、時刻 $t$ から 時刻 $t+h$ での $\b\theta$ の更新に、時刻 $t+h/2$ での
-$\b p$ の値を用いることで、近似誤差を減らした。このアイデアはSymmetric Splitting Integrators(SSI)
-という方法に一般化することができる。
-
-アイデアはHMCと似ており、考えている運動方程式をいくつかの部分に分解し、1つずつを順番に更新していくというものである。
-[Chen+15a]では、SGHMCに、[Chen+15b]では、mSGNHTに、[Chan+15c]ではSantaに、
-[Leimkuhler+15]ではこの論文の中で提案しているAdaptive Langevin Thermostat(Ad-Langevin)に、
-それぞれSSIを適用している。
+アイデアはHMCと似ており、考えている運動方程式をいくつかの部分に分解し、
+1つずつを順番に更新していくというものである。
+[Chen+15a]では、SGHMCに、[Chen+15b]では、mSGNHTに、[Chen+15c]ではSantaに、
+[Leimkuhler+15]ではこの論文の中で提案している
+Adaptive Langevin Thermostat(Ad-Langevin)に、
+それぞれSymmetric Splittingを適用している。
 
 まず、Leapfrog法を見直してみよう。HMCの運動方程式を見直してみよう。
 
@@ -1058,7 +1102,8 @@ d\b p = -\nabla_{\b\theta}U(\b\theta) dt
 $$
 
 すると、これらの方程式は解析的に解ける。
-例えば $A$ の場合、 $\b p$ は時刻によらない定数であり、 $\b \theta$ は $t$ に関する1次式となる。
+例えば $A$ の場合、 $\b p$ は時刻によらない定数であり、
+$\b \theta$ は $t$ に関する1次式となる。
 右辺も同様である。
 
 この方程式を
@@ -1069,17 +1114,17 @@ $$
 
 という順番で解くと、Leapfrog法を適用したHMCの更新則となる。
 このように、今解きたい運動方程式をいくつかの解析的に解ける部分に分解し、1つずつ解析的な解で
-更新していく手法をSymmetric Splitting Integrator(SSI)と呼ぶ。
+更新していく手法をSymmetric Splittingと呼ぶ。
 Symmetricとついているのは、更新の順番が$A\rightarrow B \rightarrow A$
 と対称的であることに由来する。
 
-それでは、SSIをSGHMCに適用してみよう。
+それでは、Symmetric SplittingをSGHMCに適用してみよう。
 SGHMCの更新則は以下の通りであった。
 
 $$
 \begin{align}
 d\b\theta &= \b p dt \\
-d\b p &= \nabla_{\b \theta} U(\b\theta)dt - A\b pdt + \mathcal N(\b 0, 2AId t)
+d\b p &= -\nabla_{\b \theta} U(\b\theta)dt - A\b pdt + \mathcal N(\b 0, 2AId t)
 \end{align}
 $$
 
@@ -1105,12 +1150,13 @@ d\b p = -A\b pdt
 O \left\{
 \begin{matrix}
 d\b\theta = 0\\
-d\b p = \nabla_{\b\theta}U(\b\theta) + \mathcal N (\b 0, 2AIdt)
+d\b p = -\nabla_{\b\theta}U(\b\theta) + \mathcal N (\b 0, 2AIdt)
 \end{matrix}
 \right.
 $$
 
-この上で時刻 $t$ から $t+h$ の 更新では、 $A(h/2)\to B(h/2)\to O(h)\to B(h/2)\to A(h/2)$ の順番に方程式を解いていく。
+この上で時刻 $t$ から $t+h$ の 更新では、
+$A(h/2)\to B(h/2)\to O(h)\to B(h/2)\to A(h/2)$ の順番に方程式を解いていく。
 括弧の中は更新する時間幅である。
 結局、更新則は次のようになる
 
@@ -1118,14 +1164,15 @@ $$
 \begin{align}
 A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2}\\
 B: & \b p \leftarrow \exp\left(-A\frac{h}{2}\right) \b p\\
-O: & \b p \leftarrow \b p + \nabla_{\b\theta}U(\b\theta)
+O: & \b p \leftarrow \b p - \nabla_{\b\theta}U(\b\theta)
 + \b\zeta \qquad \b \zeta \sim \mathcal N (\b 0, 2AIdt)\\
 B: & \b p \leftarrow \exp\left(-A\frac{h}{2}\right) \b p\\
 A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2}\\
 \end{align}
 $$
 
-mSGNHTに対してSSIを適用した場合も同様である。詳細は割愛して分解の方法と結論の更新則だけを引用しよう。
+mSGNHTに対してSSIを適用した場合も同様である。
+詳細は割愛して分解の方法と結論の更新則だけを引用しよう。
 運動方程式は以下の3つに分解する。
 
 $$
@@ -1149,7 +1196,7 @@ d\b\xi = 0
 O \left\{
 \begin{matrix}
 d\b\theta = 0\\
-d\b p = \nabla_{\b\theta}U(\b\theta) + \mathcal N (\b 0, 2AIdt)\\
+d\b p = -\nabla_{\b\theta}U(\b\theta) + \mathcal N (\b 0, 2AIdt)\\
 d\b\xi = 0
 \end{matrix}
 \right.
@@ -1158,50 +1205,80 @@ $$
 対応する更新則は以下のとおり
 $$
 \begin{align}
-A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2}, \quad \b\xi \leftarrow (\b p \odot \b p -I)\frac{h}{2}\\
+A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2},
+\quad \b\xi \leftarrow (\b p \odot \b p -I)\frac{h}{2}\\
 B: & \b p \leftarrow \exp\left(-\b\xi\frac{h}{2}\right) \odot \b p\\
-O: & \b p \leftarrow \b p + \nabla_{\b\theta}U(\b\theta)
+O: & \b p \leftarrow \b p - \nabla_{\b\theta}U(\b\theta)
 + \b\zeta \qquad \b \zeta \sim \mathcal N (\b 0, 2AIdt)\\
 B: & \b p \leftarrow \exp\left(-\b\xi\frac{h}{2}\right) \odot \b p\\
-A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2}, \quad \b\xi \leftarrow (\b p \odot \b p -I)\frac{h}{2}\\
+A: & \b\theta \leftarrow \b\theta + \b p \frac{h}{2},
+\quad \b\xi \leftarrow (\b p \odot \b p -I)\frac{h}{2}\\
 \end{align}
 $$
 
 
 ## 統一的な理解
 
-[Ma+15] では、実はここまでに挙げた運動方程式は統一的に書けることを示している。
+[Ma+15] では、実はここまでに挙げた運動方程式は以下の形で統一的に書けることを示している
+（[Ma+15]では逆温度 $\beta = 1$ としているが、以下の式では一般の $\beta$ を考えている）。
+この式は[Shi+12]でA-typeという名前で言及されている。
 
 $$
 \begin{align}
-d\b\varphi &= \b f(\b\varphi) dt + N(\b 0, 2D(\b\varphi)dt)\\
+d\b\varphi &= \b f(\b\varphi) dt
++ N\left(\b 0, \frac{2}{\beta}D(\b\varphi)dt\right)\\
 \end{align}
 $$
 
-ここで、 $\varphi$ はモデルのパラメータ、$D$ は半正定値行列に値を持つ関数、 $\b f$ は次の表式である。
+ここで、 $\varphi$ はモデルのパラメータ、$D$ は半正定値行列に値を持つ関数、
+$\b f$ は次の表式である。
 
 $$
 \begin{align}
-\b f(\b\varphi) &= \left[D(\b\varphi) + Q(\b\varphi)\right]\nabla_{\b\varphi}H(\b\varphi)
-+ \b\Gamma(\b\varphi)\\
-\b\Gamma_i(\b\varphi) &= \nabla_{\b\varphi}^T \left[ D_{i \cdot}(\b\varphi) + Q_{i \cdot}(\b\varphi)\right].
+\b f(\b\varphi) &= -\left[D(\b\varphi)
++ Q(\b\varphi)\right]\nabla_{\b\varphi}H(\b\varphi)
++ \frac{1}{\beta}\b\Gamma(\b\varphi)\\
+\b\Gamma_i(\b\varphi) &= \nabla_{\b\varphi}^T
+\left[ D_{i \cdot}(\b\varphi) + Q_{i \cdot}(\b\varphi)\right].
 \end{align}
 $$
 
-ここで、 $Q$ は歪行列に値を持つ関数、$D_{i\cdot}, Q_{i\cdot}$ はそれぞれ、$D, Q$ の $i$ 行目を表す。
-[Ma+15]のTheorem1では、$p(\b\varphi) \propto \exp(-H(\b\varphi))$ がこの運動方程式の定常分布であり、
-さらに $D(\b\varphi)$ が（任意の $\b\varphi$ で？）正定値行列であるか、（系が？）エルゴード性を満たすならば、この定常分布が唯一であることを示している。
+ここで、 $Q$ は歪行列に値を持つ関数、
+$D_{i\cdot}, Q_{i\cdot}$ はそれぞれ、$D, Q$ の $i$ 行目を表す。
+[Ma+15]のTheorem1では、$p(\b\varphi) \propto \exp(-H(\b\varphi))$
+がこの運動方程式の定常分布であり、さらに $D(\b\varphi)$ が
+（任意の $\b\varphi$ で？）正定値行列であるか、
+（系が？）エルゴード性を満たすならば、この定常分布が唯一であることを示している。
 
 この式で、パラメータとなっているのは $H$, $D$, $Q$ である。
 これらをそれぞれ以下のように設定すると、これまで解説してきたサンプリングアルゴリズムが得られる。
 
 $$
-\newcommand{SGNHTD}{
+\newcommand{SGHMCD}{
 \left[
-\begin{matrix} A\tilde{I} & 0\\0 & 0 \end{matrix}
+\begin{matrix}0 & 0\\0&AI\end{matrix}
 \right]
 }
 $$
+
+$$
+\newcommand{SGNHTD}{
+\left[
+\begin{matrix} 0&0&0\\0&AI & 0\\0 & 0 &0\end{matrix}
+\right]
+}
+$$
+
+$$
+\newcommand{SantaD}{
+\left[
+\begin{array}{cc}
+\begin{matrix} 0&0&0\\0&G_2(\b\theta) I & 0 \\ 0 & 0&0\end{matrix}
+\end{array}
+\right]
+}
+$$
+
 
 $$
 \newcommand{SGNHTQ}{
@@ -1225,20 +1302,43 @@ J & \begin{matrix} 0 \\ \mathrm{diag} (\b p)\end{matrix}\\
 }
 $$
 
+$$
+\newcommand{SantaQ}{
+\left[
+\begin{array}{cc}
+G_1(\b\theta)J & \begin{matrix} 0 \\ \mathrm{diag} (\b p)\end{matrix}\\
+\begin{matrix} 0 & -\mathrm{diag} (\b p)\end{matrix} & 0
+\end{array}
+\right]
+}
+$$
+
+
 ||$\b\varphi$|$H(\b\varphi)$|$D$|$Q$|
 |:-----|:-----:|:-----:|:-----:|:-----:|
 |HMC|$(\b\theta, \b p)$|$U(\b\theta) + K(\b p)$|$0$|$J$|
-|SGHMC|$(\b\theta, \b p)$|$U(\b\theta) + K(\b p)$|$A\tilde{I}$|$J$|
+|SGHMC|$(\b\theta, \b p)$|$U(\b\theta) + K(\b p)$|$\SGHMCD$|$J$|
 |SGLD|$\b\theta$|$U(\b\theta)$|$D$|$0$|
+|SGRLD|$\b\theta$|$U(\b\theta)$|$G(\b\theta)$|$0$|
 |SGNHT|$(\b\theta, \b p, \xi)$|$U(\b\theta) + K(\b p) + V(\xi)$|$\SGNHTD$|$\SGNHTQ$|
 |mSGNHT|$(\b\theta, \b p, \b\xi)$|$U(\b\theta) + K(\b p) + V'(\b\xi)$|$\SGNHTD$|$\mSGNHTQ$|
-|Santa|||||
+|Santa|$(\b\theta, \b p, \b\xi)$|$U(\b\theta) + K(\b p) + \tilde{V}(\b\theta, \b\xi)$|$\SantaD$|$\SantaQ$|
 
-ここで、$U(\b\theta) = -\log p(\b\theta|X) + \mathrm{const.}$, $K(\b p) = \frac{1}{2} \b p^T \b p$,
-$V(\xi) = d(\xi - A)^2$ , $V'(\b\xi) = (\b\xi - A\b 1)^T(\b\xi - A\b 1)$ ,
-$\tilde{I} = \begin{bmatrix}0&0 \\ 0 &I\end{bmatrix}$,
-$J = \begin{bmatrix}0&-I\\I&0\end{bmatrix}$
+ここで、
 
+* $U(\b\theta) = -\log p(\b\theta|X) + \mathrm{const.}$
+* $K(\b p) = \frac{1}{2} \b p^T \b p$
+* $V(\xi) = d(\xi - A)^2$
+* $V'(\b\xi) = (\b\xi - A\b 1)^T(\b\xi - A\b 1)$
+* $\tilde{V}(\b\theta, \b\xi)
+= \frac{1}{2}  (\mathrm{diag}(\b\xi) - G_2 (\b\theta))^T
+(\mathrm{diag}(\b\xi) - G_2 (\b\theta))$
+* $J = \begin{bmatrix}0&-I\\I&0\end{bmatrix}$
+* $G$, $G_1$, $G_2$は $\b\theta$ に関する適当な関数
+
+このSDEは $p(\b\varphi) \propto \exp(-\beta H(\b\varphi))$
+を定常分布に持つことが示せる。
+Santa以外では、逆温度 $\beta = 1$ としてこれまで方程式は立てていた。
 
 
 ## 参考文献
@@ -1246,6 +1346,7 @@ $J = \begin{bmatrix}0&-I\\I&0\end{bmatrix}$
 * HMC: [Neal11] Neal, R. M. (2011). MCMC using Hamiltonian dynamics. Handbook of Markov Chain Monte Carlo, 2.
 * SGHMC: [Chen+14] Chen, T., Fox, E. B., & Guestrin, C. (2014). Stochastic gradient hamiltonian monte carlo. arXiv preprint arXiv:1402.4102.
 * SGLD: [Welling+11] Welling, M., & Teh, Y. W. (2011). Bayesian learning via stochastic gradient Langevin dynamics. In Proceedings of the 28th International Conference on Machine Learning (ICML-11) (pp. 681-688).
+* SGRLD: [Patterson+13]: Patterson, S., & Teh, Y. W. (2013). Stochastic gradient Riemannian Langevin dynamics on the probability simplex. In Advances in Neural Information Processing Systems (pp. 3102-3110).
 * SGNHT: [Ding+14] Ding, N., Fang, Y., Babbush, R., Chen, C., Skeel, R. D., & Neven, H. (2014). Bayesian sampling using stochastic gradient thermostats. In Advances in Neural Information Processing Systems (pp. 3203-3211).
 * mSGNHT: [Gan+15] Gan, Z., EDU, D., Chen, C., Henao, R., & Carlson, D. Scalable Deep Poisson Factor Analysis for Topic Modeling.
 * Santa: [Chen+15c] Chen, C., Carlson, D., Gan, Z., Li, C., & Carin, L. (2015). Bridging the Gap between Stochastic Gradient MCMC and Stochastic Optimization. arXiv preprint arXiv:1512.07962.
@@ -1253,3 +1354,4 @@ $J = \begin{bmatrix}0&-I\\I&0\end{bmatrix}$
 * [Chen+15a]: Chen, C., Ding, N., & Carin, L. (2015). On the convergence of stochastic gradient MCMC algorithms with high-order integrators. In Advances in Neural Information Processing Systems (pp. 2269-2277).
 * [Chen+15b]: Li, C., Chen, C., Fan, K., & Carin, L. (2015). High-Order Stochastic Gradient Thermostats for Bayesian Learning of Deep Models. arXiv preprint arXiv:1512.07662.
 * [Leimkuhler+15]: Leimkuhler, B., & Shang, X. (2015). Adaptive Thermostats for Noisy Gradient Systems. arXiv preprint arXiv:1505.06889.
+* [Shi+12]: Shi, J., Chen, T., Yuan, R., Yuan, B., & Ao, P. (2012). Relation of a new interpretation of stochastic differential equations to ito process. Journal of Statistical Physics, 148(3), 579-590.
